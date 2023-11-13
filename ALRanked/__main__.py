@@ -24,109 +24,32 @@ def post_graphql_request(url: str, json_data: dict) -> dict:
         if hasattr(error.response, "request") and error.response.request:
             print(f"Request Headers: {error.response.request.headers}")
 
-def get_top_media(media_type: str) -> dict[int, Media]:
-    variables = {"perPage": 50}
-    ranked_media = {}
-    for page in [1, 2]:
-        variables["page"] = page
-        query = '''
-        query ($page: Int, $perPage: Int) {
-          Page(page: $page, perPage: $perPage) {
-            media(type: ''' + media_type + ''', sort: SCORE_DESC) {
-              id
-              title {
-                romaji
-              }
-              averageScore
-            }
-          }
-        }
-        '''
-        json_data = {"query": query, "variables": variables}
-        data = post_graphql_request(BASE_API_URL, json_data)
-        for item in data["data"]["Page"]["media"]:
-            ranked_media[item["id"]] = {
-                "id": item["id"],
-                "title": item["title"]["romaji"],
-                "rank": len(ranked_media) + 1
-            }
-    return ranked_media
-
-
-def get_top_media_by_status(media_type: str, media_status: str) -> Media:
+def get_top_media(media_type: str, media_status: None | str = None, country: None | str = None, genre: None | str = None) -> dict[int, Media]:
     variables = {"perPage": 50}
     ranked_media = {}
     sort_criteria = "POPULARITY_DESC" if media_status == "NOT_YET_RELEASED" else "SCORE_DESC"
     for page in [1, 2]:
         variables["page"] = page
-        query = '''
-        query ($page: Int, $perPage: Int) {
-          Page(page: $page, perPage: $perPage) {
-            media(type: ''' + media_type + ''', status: ''' + media_status + ''', sort: ''' + sort_criteria + ''') {
+        query_parts = [f"type: {media_type}"]
+        if media_status:
+            query_parts.append(f"status: {media_status}")
+        if country:
+            query_parts.append(f"countryOfOrigin: {country}")
+        if genre:
+            query_parts.append(f"genre: \"{genre}\"")
+        query_filters = ", ".join(query_parts)
+        query = f'''
+        query ($page: Int, $perPage: Int) {{
+          Page(page: $page, perPage: $perPage) {{
+            media({query_filters}, sort: {sort_criteria}) {{
               id
-              title {
+              title {{
                 romaji
-              }
+              }}
               averageScore
-            }
-          }
-        }
-        '''
-        json_data = {"query": query, "variables": variables}
-        data = post_graphql_request(BASE_API_URL, json_data)
-        for item in data["data"]["Page"]["media"]:
-            ranked_media[item["id"]] = {
-                "id": item["id"],
-                "title": item["title"]["romaji"],
-                "rank": len(ranked_media) + 1
-            }
-    return ranked_media
-
-def get_top_media_by_country(media_type: str, country: str) -> Media:
-    variables = {"perPage": 50}
-    ranked_media = {}
-    for page in [1, 2]:
-        variables["page"] = page
-        query = '''
-        query ($page: Int, $perPage: Int) {
-          Page(page: $page, perPage: $perPage) {
-            media(type: ''' + media_type + ''', countryOfOrigin: ''' + country + ''', sort: SCORE_DESC) {
-              id
-              title {
-                romaji
-              }
-              averageScore
-            }
-          }
-        }
-        '''
-        json_data = {"query": query, "variables": variables}
-        data = post_graphql_request(BASE_API_URL, json_data)
-        for item in data["data"]["Page"]["media"]:
-            ranked_media[item["id"]] = {
-                "id": item["id"],
-                "title": item["title"]["romaji"],
-                "rank": len(ranked_media) + 1
-            }
-    return ranked_media
-
-def get_top_media_by_genre(media_type: str, genre: str) -> Media:
-    variables = {"perPage": 50}
-    ranked_media = {}
-    for page in [1, 2]:
-        variables["page"] = page
-        query = '''
-        query ($page: Int, $perPage: Int) {
-          Page(page: $page, perPage: $perPage) {
-            media(type: ''' + media_type + ''', genre: "''' + genre + '''", sort: SCORE_DESC) {
-              id
-              title {
-                romaji
-              }
-              averageScore
-            }
-          }
-        }
+            }}
+          }}
+        }}
         '''
         json_data = {"query": query, "variables": variables}
         data = post_graphql_request(BASE_API_URL, json_data)
@@ -152,15 +75,15 @@ def new_csv(rankings: dict[str, Media]) -> None:
 
 def main():
     rankings = {}
-    rankings['All Anime'] = get_top_media('ANIME')
-    rankings['All Manga'] = get_top_media('MANGA')
-    rankings['Releasing Anime'] = get_top_media_by_status('ANIME', 'RELEASING')
-    rankings['Unreleased Anime'] = get_top_media_by_status('ANIME', 'NOT_YET_RELEASED')
-    rankings['Releasing Manga'] = get_top_media_by_status('MANGA', 'RELEASING')
-    rankings['Unreleased Manga'] = get_top_media_by_status('MANGA', 'NOT_YET_RELEASED')
-    rankings['All Manhwa'] = get_top_media_by_country('MANGA', 'KR')
-    rankings['All Hentai'] = get_top_media_by_genre('ANIME', 'hentai')
-    rankings['All Hentai Manga'] = get_top_media_by_genre('MANGA', 'hentai')
+    rankings['All Anime'] = get_top_media(media_type='ANIME')
+    rankings['All Manga'] = get_top_media(media_type='MANGA')
+    rankings['Releasing Anime'] = get_top_media(media_type='ANIME', media_status='RELEASING')
+    rankings['Unreleased Anime'] = get_top_media(media_type='ANIME', media_status='NOT_YET_RELEASED')
+    rankings['Releasing Manga'] = get_top_media(media_type='MANGA', media_status='RELEASING')
+    rankings['Unreleased Manga'] = get_top_media(media_type='MANGA', media_status='NOT_YET_RELEASED')
+    rankings['All Manhwa'] = get_top_media(media_type='MANGA', country='KR')
+    rankings['All Hentai'] = get_top_media(media_type='ANIME', genre='hentai')
+    rankings['All Hentai Manga'] = get_top_media(media_type='MANGA', genre='hentai')
     new_csv(rankings)
 
 
