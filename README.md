@@ -23,7 +23,7 @@ Navigate to the project directory and install the required dependencies:
 ## Usage
 To run the application, use the following command in the project directory:
 
-`python main.py`
+`python __main__.py`
 
 This will execute the main script and generate CSV files for various media categories in the current directory.
 
