@@ -85,6 +85,7 @@ def build_query(
     query_filters = ", ".join(
         [f"{key}: {value}" for key, value in query_parts.items() if value is not None],
     )
+    print(f"Generating request for the following filter: {query_filters}")
     return f"""
     query ($page: Int, $perPage: Int) {{
       Page(page: $page, perPage: $perPage) {{
@@ -169,11 +170,14 @@ def new_csv(rankings: dict[str, dict[int, Media]]) -> None:
     """
     for rank_type, media_list in rankings.items():
         csv_name = f"{rank_type}.csv"
-        with Path(csv_name).open("w", newline="", encoding="utf-8") as csvfile:
-            fieldnames = ["id", "title", "rank"]
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(media_list.values())
+        try:
+            with Path(csv_name).open("w", newline="", encoding="utf-8") as csvfile:
+                fieldnames = ["id", "title", "rank"]
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(media_list.values())
+        except PermissionError as error:
+            print(f"Lack of permissions to open {csvfile}. Check if file is still open: {error}")
 
 
 def main() -> None:
