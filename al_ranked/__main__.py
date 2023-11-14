@@ -157,27 +157,20 @@ def get_top_media(
     return ranked_media
 
 
-def new_csv(rankings: dict[str, Media]) -> None:
+def new_csv(rankings: dict[str, dict[int, Media]]) -> None:
     """Create a CSV file with the rankings data.
 
     Args:
         rankings (dict): A dictionary containing the rankings data. The keys represent the different
             rankings categories, and the values are the results of the 'get_top_media' function.
-
-    Returns:
-        dict: A dictionary containing the rankings data with the 'id', 'title', and 'rank'
-            information for each item.
     """
-    for rank_type in rankings:
-        csv_name = rank_type + ".csv"
+    for rank_type, media_list in rankings.items():
+        csv_name = f"{rank_type}.csv"
         with Path(csv_name).open("w", newline="", encoding="utf-8") as csvfile:
-            writer = csv.writer(csvfile)
-            writer.writerow(["id", "title", "rank"])
-            for media in rankings[rank_type]:
-                media_id = rankings[rank_type][media]["id"]
-                title = rankings[rank_type][media]["title"]
-                rank = rankings[rank_type][media]["rank"]
-                writer.writerow([media_id, title, rank])
+            fieldnames = ["id", "title", "rank"]
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(media_list.values())
 
 
 def main() -> None:
@@ -193,22 +186,17 @@ def main() -> None:
         Called when the script is executed directly. It requires no arguments and returns nothing.
         Generates CSV files in the current directory with ranked media data.
     """
-    rankings = {}
-    rankings["All Anime"] = get_top_media(media_type="ANIME")
-    rankings["All Manga"] = get_top_media(media_type="MANGA")
-    rankings["Releasing Anime"] = get_top_media(media_type="ANIME", media_status="RELEASING")
-    rankings["Unreleased Anime"] = get_top_media(
-        media_type="ANIME",
-        media_status="NOT_YET_RELEASED",
-    )
-    rankings["Releasing Manga"] = get_top_media(media_type="MANGA", media_status="RELEASING")
-    rankings["Unreleased Manga"] = get_top_media(
-        media_type="MANGA",
-        media_status="NOT_YET_RELEASED",
-    )
-    rankings["All Manhwa"] = get_top_media(media_type="MANGA", country="KR")
-    rankings["All Hentai"] = get_top_media(media_type="ANIME", genre="hentai")
-    rankings["All Hentai Manga"] = get_top_media(media_type="MANGA", genre="hentai")
+    rankings = {
+        "All Anime": get_top_media(media_type="ANIME"),
+        "All Manga": get_top_media(media_type="MANGA"),
+        "Releasing Anime": get_top_media(media_type="ANIME", media_status="RELEASING"),
+        "Unreleased Anime": get_top_media(media_type="ANIME", media_status="NOT_YET_RELEASED"),
+        "Releasing Manga": get_top_media(media_type="MANGA", media_status="RELEASING"),
+        "Unreleased Manga": get_top_media(media_type="MANGA", media_status="NOT_YET_RELEASED"),
+        "All Manhwa": get_top_media(media_type="MANGA", country="KR"),
+        "All Hentai": get_top_media(media_type="ANIME", genre="hentai"),
+        "All Hentai Manga": get_top_media(media_type="MANGA", genre="hentai"),
+    }
     new_csv(rankings)
 
 
