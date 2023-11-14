@@ -39,6 +39,8 @@ import requests
 from requests.exceptions import ConnectionError, HTTPError
 
 BASE_API_URL = "https://graphql.anilist.co"
+POPULARITY_SORT = "POPULARITY_DESC"
+SCORE_SORT = "SCORE_DESC"
 
 
 class Media(TypedDict):
@@ -74,14 +76,15 @@ def build_query(
     Returns:
         str: The constructed GraphQL query string.
     """
-    query_parts = [f"type: {media_type}"]
-    if media_status:
-        query_parts.append(f"status: {media_status}")
-    if country:
-        query_parts.append(f"countryOfOrigin: {country}")
-    if genre:
-        query_parts.append(f'genre: "{genre}"')
-    query_filters = ", ".join(query_parts)
+    query_parts = {
+        "type": media_type,
+        "status": media_status,
+        "countryOfOrigin": country,
+        "genre": f'"{genre}"' if genre else None,
+    }
+    query_filters = ", ".join(
+        [f"{key}: {value}" for key, value in query_parts.items() if value is not None],
+    )
     return f"""
     query ($page: Int, $perPage: Int) {{
       Page(page: $page, perPage: $perPage) {{
@@ -142,7 +145,7 @@ def get_top_media(
     """
     variables = {"perPage": 50}
     ranked_media = {}
-    sort_criteria = "POPULARITY_DESC" if media_status == "NOT_YET_RELEASED" else "SCORE_DESC"
+    sort_criteria = POPULARITY_SORT if media_status == "NOT_YET_RELEASED" else SCORE_SORT
     for page in [1, 2]:
         variables["page"] = page
         query = build_query(media_type, sort_criteria, media_status, country, genre)
