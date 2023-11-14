@@ -36,7 +36,7 @@ from pathlib import Path
 from typing import TypedDict
 
 import requests
-from requests.exceptions import HTTPError
+from requests.exceptions import ConnectionError, HTTPError
 
 BASE_API_URL = "https://graphql.anilist.co"
 
@@ -53,6 +53,48 @@ class Media(TypedDict):
     id: int
     title: str
     rank: int
+
+
+def build_query(
+    media_type: str,
+    sort_criteria: str,
+    media_status: None | str = None,
+    country: None | str = None,
+    genre: None | str = None,
+) -> str:
+    """Builds the GraphQL query string based on the provided parameters.
+
+    Args:
+        media_type (str): The type of media for the query.
+        sort_criteria (str): The sorting criteria for the query.
+        media_status (None | str): The status of the media.
+        country (None | str): The country of origin of the media.
+        genre (None | str): The genre of the media.
+
+    Returns:
+        str: The constructed GraphQL query string.
+    """
+    query_parts = [f"type: {media_type}"]
+    if media_status:
+        query_parts.append(f"status: {media_status}")
+    if country:
+        query_parts.append(f"countryOfOrigin: {country}")
+    if genre:
+        query_parts.append(f'genre: "{genre}"')
+    query_filters = ", ".join(query_parts)
+    return f"""
+    query ($page: Int, $perPage: Int) {{
+      Page(page: $page, perPage: $perPage) {{
+        media({query_filters}, sort: {sort_criteria}) {{
+          id
+          title {{
+            romaji
+          }}
+          averageScore
+        }}
+      }}
+    }}
+    """
 
 
 def post_graphql_request(url: str, json_data: dict) -> dict:
@@ -76,6 +118,8 @@ def post_graphql_request(url: str, json_data: dict) -> dict:
         print(f"Error: {error}")
         if hasattr(error.response, "request") and error.response.request:
             print(f"Request Headers: {error.response.request.headers}")
+    except ConnectionError as error:
+        print(f"Error connecting to API: {error}")
 
 
 def get_top_media(
@@ -88,9 +132,9 @@ def get_top_media(
 
     Args:
         media_type (str): The type of media to retrieve and rank.
-        media_status (None | str, optional): The status of the media. Defaults to None.
-        country (None | str, optional): The country of origin of the media. Defaults to None.
-        genre (None | str, optional): The genre of the media. Defaults to None.
+        media_status (None | str): The status of the media. Defaults to None.
+        country (None | str): The country of origin of the media. Defaults to None.
+        genre (None | str): The genre of the media. Defaults to None.
 
     Returns:
         dict[int, Media]: A dictionary containing the ranked media items, where the keys are the
@@ -101,27 +145,7 @@ def get_top_media(
     sort_criteria = "POPULARITY_DESC" if media_status == "NOT_YET_RELEASED" else "SCORE_DESC"
     for page in [1, 2]:
         variables["page"] = page
-        query_parts = [f"type: {media_type}"]
-        if media_status:
-            query_parts.append(f"status: {media_status}")
-        if country:
-            query_parts.append(f"countryOfOrigin: {country}")
-        if genre:
-            query_parts.append(f'genre: "{genre}"')
-        query_filters = ", ".join(query_parts)
-        query = f"""
-        query ($page: Int, $perPage: Int) {{
-          Page(page: $page, perPage: $perPage) {{
-            media({query_filters}, sort: {sort_criteria}) {{
-              id
-              title {{
-                romaji
-              }}
-              averageScore
-            }}
-          }}
-        }}
-        """
+        query = build_query(media_type, sort_criteria, media_status, country, genre)
         json_data = {"query": query, "variables": variables}
         data = post_graphql_request(BASE_API_URL, json_data)
         for item in data["data"]["Page"]["media"]:
