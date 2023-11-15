@@ -85,7 +85,7 @@ def build_query(
     query_filters = ", ".join(
         [f"{key}: {value}" for key, value in query_parts.items() if value is not None],
     )
-    print(f"Generating request for the following filter: {query_filters}")
+    print(f"Generating request for the following filter - {query_filters}")
     return f"""
     query ($page: Int, $perPage: Int) {{
       Page(page: $page, perPage: $perPage) {{
@@ -147,9 +147,9 @@ def get_top_media(
     variables = {"perPage": 50}
     ranked_media = {}
     sort_criteria = POPULARITY_SORT if media_status == "NOT_YET_RELEASED" else SCORE_SORT
+    query = build_query(media_type, sort_criteria, media_status, country, genre)
     for page in [1, 2]:
         variables["page"] = page
-        query = build_query(media_type, sort_criteria, media_status, country, genre)
         json_data = {"query": query, "variables": variables}
         data = post_graphql_request(BASE_API_URL, json_data)
         for item in data["data"]["Page"]["media"]:
