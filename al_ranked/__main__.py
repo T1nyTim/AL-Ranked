@@ -32,11 +32,16 @@ Usage:
     current directory.
 """
 import csv
+from datetime import datetime
 from pathlib import Path
-from typing import TypedDict
+from typing import TYPE_CHECKING, TypedDict
 
 import requests
+from openpyxl import Workbook, load_workbook
 from requests.exceptions import ConnectionError, HTTPError
+
+if TYPE_CHECKING:
+    from openpyxl.worksheet.worksheet import Worksheet
 
 BASE_API_URL = "https://graphql.anilist.co"
 POPULARITY_SORT = "POPULARITY_DESC"
@@ -180,6 +185,34 @@ def new_csv(rankings: dict[str, dict[int, Media]]) -> None:
             print(f"Lack of permissions to open {csvfile}. Check if file is still open: {error}")
 
 
+def create_or_update_sheet(workbook: Workbook, sheet_name: str, data: dict[int, Media]) -> None:
+    if sheet_name in workbook.sheetnames:
+        sheet = workbook[sheet_name]
+        id_to_row = {sheet.cell(row=i, column=2).value: i for i in range(2, sheet.max_row + 1)}
+        new_column = sheet.max_column + 1
+        sheet.cell(row=1, column=new_column).value = datetime.now(tz=datetime.UTC).date()
+        for item in data.values():
+            row = id_to_row.get(item["id"])
+            if row:
+                sheet.cell(row=row, column=new_column).value = item["rank"]
+            else:
+                sheet.append(
+                    [item["title"], item["id"]] + [None] * (new_column - 3) + [item["rank"]],
+                )
+    else:
+        sheet: Worksheet = workbook.create_sheet(sheet_name)
+        sheet.append(["Name", "ID", str(datetime.now(tz=datetime.UTC).date())])
+        for item in data.values():
+            sheet.append([item["title"], item["id"], item["rank"]])
+
+
+def update_workbook(filepath: Path, rankings: dict[str, dict[int, Media]]) -> None:
+    workbook = load_workbook(filepath) if filepath.exists() else Workbook()
+    for rank_type, data in rankings.items():
+        create_or_update_sheet(workbook, rank_type, data)
+    workbook.save(filepath)
+
+
 def main() -> None:
     """Orchestrates the fetching, ranking, and CSV export of media data from the AniList API.
 
@@ -193,18 +226,20 @@ def main() -> None:
         Called when the script is executed directly. It requires no arguments and returns nothing.
         Generates CSV files in the current directory with ranked media data.
     """
+    filepath = Path("rankings.xlsx")
     rankings = {
-        "All Anime": get_top_media(media_type="ANIME"),
-        "All Manga": get_top_media(media_type="MANGA"),
-        "Releasing Anime": get_top_media(media_type="ANIME", media_status="RELEASING"),
-        "Unreleased Anime": get_top_media(media_type="ANIME", media_status="NOT_YET_RELEASED"),
-        "Releasing Manga": get_top_media(media_type="MANGA", media_status="RELEASING"),
-        "Unreleased Manga": get_top_media(media_type="MANGA", media_status="NOT_YET_RELEASED"),
-        "All Manhwa": get_top_media(media_type="MANGA", country="KR"),
-        "All Hentai": get_top_media(media_type="ANIME", genre="hentai"),
-        "All Hentai Manga": get_top_media(media_type="MANGA", genre="hentai"),
+        "Anime": get_top_media(media_type="ANIME"),
+        "Manga": get_top_media(media_type="MANGA"),
+        "Manhwa": get_top_media(media_type="MANGA", country="KR"),
+        "AiringAnime": get_top_media(media_type="ANIME", media_status="RELEASING"),
+        "ReleasingManga": get_top_media(media_type="MANGA", media_status="RELEASING"),
+        "UpcomingAnime": get_top_media(media_type="ANIME", media_status="NOT_YET_RELEASED"),
+        "UnreleasedManga": get_top_media(media_type="MANGA", media_status="NOT_YET_RELEASED"),
+        "Hentai": get_top_media(media_type="ANIME", genre="hentai"),
+        "Doujinshi": get_top_media(media_type="MANGA", genre="hentai"),
     }
     new_csv(rankings)
+    update_workbook(filepath, rankings)
 
 
 if __name__ == "__main__":
